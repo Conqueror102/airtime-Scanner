@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import QRCode from 'react-qr-code';
-import { VoucherData } from '../../types';
+import { VoucherData, NETWORKS } from '../../types';
 import { Download, Copy, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toPng } from 'html-to-image';
@@ -9,7 +9,7 @@ interface QRCodeDisplayProps {
   voucherData: VoucherData | null;
 }
 
-const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({ voucherData }) => {
+const QRCodeDisplay: React.FC    <QRCodeDisplayProps> = ({ voucherData }) => {
   const qrRef = useRef<HTMLDivElement>(null);
   const [copySuccess, setCopySuccess] = React.useState(false);
   
@@ -17,14 +17,15 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({ voucherData }) => {
     return null;
   }
 
-  const { ussdCode } = voucherData;
+  const { ussdCode, network, price } = voucherData;
+  const networkInfo = network ? NETWORKS[network] : null;
 
   const handleDownload = async () => {
     if (qrRef.current) {
       try {
         const dataUrl = await toPng(qrRef.current, { quality: 1.0 });
         const link = document.createElement('a');
-        link.download = `airtime-qr.png`;
+        link.download = `${networkInfo?.name || "Network"}_${price || "Unknown"}_NGN_QR.png`;
         link.href = dataUrl;
         link.click();
       } catch (error) {
@@ -50,14 +51,13 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({ voucherData }) => {
     if (navigator.share && ussdCode) {
       try {
         await navigator.share({
-          title: 'Airtime Voucher',
+          title: network ? `${networkInfo?.name} Airtime Voucher` : 'Airtime Voucher',
           text: `Use this code to recharge: ${ussdCode}`,
         });
       } catch (error) {
         console.error('Error sharing:', error);
       }
     } else {
-      // Fallback to copy if sharing is not supported
       handleCopyCode();
     }
   };
@@ -69,18 +69,45 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({ voucherData }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <h2 className="text-xl font-bold text-primary-700 mb-4">
-        Generated QR Code
-      </h2>
+      <div className="flex items-center mb-4">
+        {network && networkInfo && (
+          <div 
+            className="w-8 h-8 rounded-full mr-2 flex items-center justify-center"
+            style={{ backgroundColor: networkInfo.color }}
+          >
+            <span className="text-white font-bold text-xs">
+              {networkInfo.name.substring(0, 1)}
+            </span>
+          </div>
+        )}
+        <h2 className="text-xl font-bold text-primary-700">
+          {network ? `${networkInfo?.name} ` : ''}Airtime Voucher
+          {price && ` - ₦${price}`}
+        </h2>
+      </div>
 
-      <div className="bg-white p-4 rounded-lg mb-4 flex justify-center" ref={qrRef}>
+      <div className="text-center font-semibold mb-2">{networkInfo?.name} - ₦{price}</div>
+      <div
+        className="bg-white p-4 rounded-lg mb-4 flex flex-col items-center justify-center"
+        ref={qrRef}
+      >
+        {/* Provider Name */}
+        <div className="font-bold text-lg mb-2">
+          {networkInfo?.name}
+        </div>
+        {/* QR Code */}
         <QRCode
           value={ussdCode || ''}
           size={200}
           level="H"
           fgColor="#012d01"
         />
+        {/* Amount */}
+        <div className="font-semibold text-base mt-2">
+          ₦{price}
+        </div>
       </div>
+      <div className="text-center font-semibold mb-2">{networkInfo?.name} - ₦{price}</div>
 
       <div className="p-3 bg-gray-50 rounded-lg mb-4">
         <label className="block text-sm font-medium mb-1">USSD Code:</label>

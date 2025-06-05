@@ -2,12 +2,21 @@ import React, { useState } from 'react';
 import Layout from '../components/layout/Layout';
 import PinInput from '../components/admin/PinInput';
 import QRCodeDisplay from '../components/admin/QRCodeDisplay';
+import AdminVoucherScanner from '../components/admin/AdminVoucherScanner';
 import { VoucherData } from '../types';
 import { motion } from 'framer-motion';
 import { QrCode } from 'lucide-react';
 
 const GeneratePage: React.FC = () => {
   const [voucherData, setVoucherData] = useState<VoucherData | null>(null);
+  const [useScanner, setUseScanner] = useState(false);
+
+  const handleScanResult = (code: string) => {
+    const [network, price, pin] = code.split('|'); // Assuming scanned code is "MTN|500|*555*1234567890#"
+    setVoucherData({ network, price, ussdCode: pin });
+    setUseScanner(false);
+  };
+
 
   const handleGenerateQR = (data: VoucherData) => {
     setVoucherData(data);
@@ -35,7 +44,20 @@ const GeneratePage: React.FC = () => {
         </motion.div>
 
         <div className="grid grid-cols-1 gap-8">
+        <div className="mb-4 text-right">
+          <button
+            className="bg-primary-700 text-white px-4 py-2 rounded"
+            onClick={() => setUseScanner(!useScanner)}
+          >
+            {useScanner ? 'Use Manual Input Instead' : 'Scan Voucher Instead'}
+          </button>
+        </div>
+        {useScanner ? (
+          <AdminVoucherScanner onVoucherScanned={({ network, price, pin }) => setVoucherData({ network, price, ussdCode: `*555*${pin}#` })} />
+        ) : (
           <PinInput onGenerateQR={handleGenerateQR} />
+        )}
+
           {voucherData && <QRCodeDisplay voucherData={voucherData} />}
         </div>
       </div>
