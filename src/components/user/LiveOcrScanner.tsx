@@ -20,17 +20,25 @@ const LiveOcrScanner: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const runningRef = useRef(false);
   const scanAttempts = useRef(0);
+  const [cameraReady, setCameraReady] = useState(false);
 
   useEffect(() => {
     const initCamera = async () => {
       try {
         setStatus('Initializing camera...');
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        if (videoRef.current) videoRef.current.srcObject = stream;
-        setStatus('Camera ready. Position your airtime card in view.');
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Wait for video to be ready
+          videoRef.current.onloadedmetadata = () => {
+            setCameraReady(true);
+            setStatus('Camera ready. Position your airtime card in view and click "Start Scanning".');
+          };
+        }
       } catch (err) {
         setError("Camera access denied or unavailable.");
         setStatus('');
+        setCameraReady(false);
       }
     };
     initCamera();
@@ -64,14 +72,42 @@ const LiveOcrScanner: React.FC = () => {
         runningRef.current = false;
         return;
       }
+
+      // Define the thin horizontal window (e.g., 45% from top, 10% height)
+      const windowY = Math.floor(height * 0.45);
+      const windowHeight = Math.floor(height * 0.10);
+
+      // Set canvas to window size and draw only the window area
       canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(video, 0, 0, width, height);
+      canvas.height = windowHeight;
+      ctx.drawImage(
+        video,
+        0, windowY / scale, // sx, sy (source y is scaled back up)
+        video.videoWidth, video.videoHeight * 0.10, // sWidth, sHeight (10% of video height)
+        0, 0, // dx, dy
+        width, windowHeight // dWidth, dHeight
+      );
+
+      // Convert to black and white
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+        const value = avg > 128 ? 255 : 0; // Simple threshold
+        imageData.data[i] = imageData.data[i+1] = imageData.data[i+2] = value;
+      }
+      ctx.putImageData(imageData, 0, 0);
 
       setStatus('Scanning for PIN...');
       try {
-        const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
-        const pin = text.replace(/[^0-9]/g, '').slice(0, 16);
+        const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
+          tessedit_char_whitelist: '0123456789',
+          tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        });
+        const matches = text.match(/\d{8,}/g); // 8+ digits
+        let pin = '';
+        if (matches && matches.length > 0) {
+          pin = matches.reduce((a, b) => (a.length > b.length ? a : b));
+        }
         scanAttempts.current += 1;
         if (pin.length >= 10) {
           const ussd = `*311*${pin}#`;
@@ -120,7 +156,34 @@ const LiveOcrScanner: React.FC = () => {
   return (
     <div className="p-4 bg-white border rounded shadow">
       <h3 className="text-lg font-semibold mb-2">Live PIN Scanner</h3>
-      <video ref={videoRef} autoPlay className="w-full h-auto rounded mb-4" />
+      <div className="relative w-full h-auto mb-4">
+        <video
+          ref={videoRef}
+          autoPlay
+          className="w-full h-auto rounded"
+          style={{ objectFit: 'cover' }}
+        />
+        {/* Overlay with thinner horizontal window */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.6) 45%, rgba(0,0,0,0) 47%, rgba(0,0,0,0) 53%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.6) 100%)',
+            borderRadius: '0.5rem',
+          }}
+        />
+        <div
+          className="absolute left-1/2 -translate-x-1/2"
+          style={{
+            top: '45%',
+            width: '80%',
+            height: '10%',
+            border: '2px dashed #22c55e',
+            borderRadius: '0.5rem',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       {error && (
         <div className="mb-2 text-red-600 font-medium">{error}</div>
@@ -129,13 +192,13 @@ const LiveOcrScanner: React.FC = () => {
         {status || 'Position your airtime card in front of the camera and click "Start Scanning".'}
       </div>
       <button
-        className="bg-primary-700 text-white px-4 py-2 rounded"
+        className="bg-primary-700 text-white px-4 py-2 rounded disabled:opacity-50"
         onClick={() => {
           setDetected('');
           setScanning(!scanning);
           setStatus(!scanning ? 'Scanning for PIN...' : 'Scanning stopped.');
         }}
-        disabled={!!error}
+        disabled={!!error || !cameraReady}
       >
         {scanning ? 'Stop Scanning' : 'Start Scanning'}
       </button>
