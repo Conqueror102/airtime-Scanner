@@ -15,7 +15,7 @@ const ScanPage: React.FC = () => {
   useEffect(() => {
     setShowScanner(false);
     if (scannerMode) {
-      const timeout = setTimeout(() => setShowScanner(true), 500); // 500ms delay for mobile
+      const timeout = setTimeout(() => setShowScanner(true), 1200); // 1200ms delay for mobile
       return () => clearTimeout(timeout);
     }
   }, [scannerMode]);
