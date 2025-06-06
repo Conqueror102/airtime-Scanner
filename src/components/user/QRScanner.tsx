@@ -1,10 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import jsQR from 'jsqr';
-import { createWorker } from 'tesseract.js';
 import { motion } from 'framer-motion';
-import { Camera, CameraOff, ScanLine, RefreshCw } from 'lucide-react';
-import { formatUSSDCode } from '../../types';
+import { Camera, CameraOff, RefreshCw } from 'lucide-react';
 
 interface QRScannerProps {
   onCodeScanned: (code: string) => void;
@@ -17,31 +15,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
   const [scanning, setScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [scanMode, setScanMode] = useState<'qr' | 'ocr'>('qr');
-  
+
   const webcamRef = useRef<Webcam>(null);
   const scanInterval = useRef<number | null>(null);
-  const worker = useRef<any>(null);
 
-  useEffect(() => {
-    // Initialize Tesseract worker
-    const initWorker = async () => {
-      worker.current = await createWorker();
-      await worker.current.loadLanguage('eng');
-      await worker.current.initialize('eng');
-      await worker.current.setParameters({
-        tessedit_char_whitelist: '0123456789',
-      });
-    };
-    initWorker();
-
-    return () => {
-      if (worker.current) {
-        worker.current.terminate();
-      }
-    };
-  }, []);
-  
   const enableCamera = async () => {
     setError(null);
     try {
@@ -67,7 +44,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
       }
     }
   };
-  
+
   const disableCamera = () => {
     setIsCameraEnabled(false);
     setScanning(false);
@@ -77,73 +54,42 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
     }
   };
 
-  const extractPINFromText = (text: string) => {
-    // Look for sequences of 10-16 digits
-    const matches = text.match(/\d{10,16}/g);
-    return matches ? matches[0] : null;
-  };
-
-  const scanVoucherCard = async () => {
-    if (webcamRef.current && scanning && !isProcessing) {
-      setIsProcessing(true);
-      const screenshot = webcamRef.current.getScreenshot();
-      
-      if (screenshot && worker.current) {
-        try {
-          const { data: { text } } = await worker.current.recognize(screenshot);
-          const pin = extractPINFromText(text);
-          
-          if (pin) {
-            disableCamera();
-            onCodeScanned(formatUSSDCode(pin));
-          }
-        } catch (error) {
-          console.error('OCR Error:', error);
-        }
-      }
-      setIsProcessing(false);
-    }
-  };
-  
   const scanQRCode = useCallback(() => {
     if (webcamRef.current && scanning && !isProcessing) {
       const screenshot = webcamRef.current.getScreenshot();
-      
+
       if (screenshot) {
         const canvas = document.createElement('canvas');
         const image = new Image();
-        
+
         image.onload = () => {
           canvas.width = image.width;
           canvas.height = image.height;
           const ctx = canvas.getContext('2d');
-          
+
           if (ctx) {
             ctx.drawImage(image, 0, 0);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            
+
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
               inversionAttempts: 'dontInvert',
             });
-            
+
             if (code) {
               disableCamera();
               onCodeScanned(code.data);
             }
           }
         };
-        
+
         image.src = screenshot;
       }
     }
-  }, [scanning, onCodeScanned]);
-  
+  }, [scanning, onCodeScanned, isProcessing]);
+
   useEffect(() => {
     if (scanning && isCameraEnabled) {
-      const interval = scanMode === 'qr' ? 500 : 2000;
-      const scanFunction = scanMode === 'qr' ? scanQRCode : scanVoucherCard;
-      
-      scanInterval.current = window.setInterval(scanFunction, interval) as unknown as number;
+      scanInterval.current = window.setInterval(scanQRCode, 500) as unknown as number;
       return () => {
         if (scanInterval.current) {
           window.clearInterval(scanInterval.current);
@@ -151,8 +97,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
         }
       };
     }
-  }, [scanning, isCameraEnabled, scanMode, scanQRCode]);
-  
+  }, [scanning, isCameraEnabled, scanQRCode]);
+
   if (!isCameraSupported) {
     return (
       <div className="glass-card text-center">
@@ -163,38 +109,19 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
       </div>
     );
   }
-  
+
   return (
     <div className="glass-card w-full max-w-lg mx-auto text-center">
       <h2 className="text-xl font-bold text-primary-700 mb-6">
-        {scanMode === 'qr' ? 'Scan QR Code' : 'Scan Voucher Card'}
+        Scan QR Code
       </h2>
-      
+
       {error && (
         <div className="mb-4 p-3 bg-error bg-opacity-10 text-error rounded-lg">
           {error}
         </div>
       )}
-      
-      <div className="mb-4 flex justify-center gap-4">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setScanMode('qr')}
-          className={`btn ${scanMode === 'qr' ? 'btn-primary' : 'btn-outline'}`}
-        >
-          QR Code
-        </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setScanMode('ocr')}
-          className={`btn ${scanMode === 'ocr' ? 'btn-primary' : 'btn-outline'}`}
-        >
-          Voucher Card
-        </motion.button>
-      </div>
-      
+
       {isCameraEnabled ? (
         <div className="relative overflow-hidden rounded-lg mb-4">
           <Webcam
@@ -221,7 +148,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
           <Camera size={64} className="text-gray-400" />
         </div>
       )}
-      
+
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -242,12 +169,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onCodeScanned }) => {
           )}
         </div>
       </motion.button>
-      
+
       {isCameraEnabled && (
         <p className="text-sm text-gray-600">
-          {scanMode === 'qr' 
-            ? 'Position the QR code within the square frame to scan.'
-            : 'Position the voucher PIN within the square frame to scan.'}
+          Position the QR code within the square frame to scan.
         </p>
       )}
     </div>
