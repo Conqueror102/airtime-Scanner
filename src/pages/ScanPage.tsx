@@ -96,22 +96,7 @@ const ScanPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {!scannerMode && (
-                <div className="flex justify-center mb-6 gap-4">
-                  <button
-                    className="flex items-center px-4 py-2 rounded-md border bg-primary-700 text-white"
-                    onClick={() => { setScannerMode('ocr'); setScannedCode(null); }}
-                  >
-                    <TextCursorInput className="mr-2" /> Card Scan (OCR)
-                  </button>
-                  <button
-                    className="flex items-center px-4 py-2 rounded-md border bg-primary-700 text-white"
-                    onClick={() => { setScannerMode('qr'); setScannedCode(null); }}
-                  >
-                    <QrCode className="mr-2" /> QR Scan
-                  </button>
-                </div>
-              )}
+            
               {scannerMode === 'qr' && showScanner && (
                 <QRScanner onCodeScanned={handleCodeScanned} />
               )}
