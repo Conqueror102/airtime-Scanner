@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import QRScanner from '../components/user/QRScanner';
 import LiveOcrScanner from '../components/user/LiveOcrScanner';
@@ -9,6 +9,13 @@ import { Scan, QrCode, TextCursorInput } from 'lucide-react';
 const ScanPage: React.FC = () => {
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [scannerMode, setScannerMode] = useState<'qr' | 'ocr'>('qr');
+  const [showScanner, setShowScanner] = useState(true);
+
+  useEffect(() => {
+    setShowScanner(false);
+    const timeout = setTimeout(() => setShowScanner(true), 300);
+    return () => clearTimeout(timeout);
+  }, [scannerMode]);
 
   const handleCodeScanned = (code: string) => {
     setScannedCode(code);
@@ -86,10 +93,10 @@ const ScanPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {scannerMode === 'qr' && (
+              {scannerMode === 'qr' && showScanner && (
                 <QRScanner onCodeScanned={handleCodeScanned} />
               )}
-              {scannerMode === 'ocr' && (
+              {scannerMode === 'ocr' && showScanner && (
                 <div className="flex justify-center">
                   <div className="w-full max-w-md p-4 bg-gray-50 rounded-lg shadow">
                     <LiveOcrScanner onCodeScanned={handleCodeScanned} />
