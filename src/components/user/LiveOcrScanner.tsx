@@ -42,6 +42,15 @@ const LiveOcrScanner: React.FC = () => {
       }
     };
     initCamera();
+
+    // Cleanup: Stop camera stream when component unmounts
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
