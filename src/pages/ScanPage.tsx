@@ -8,13 +8,16 @@ import { Scan, QrCode, TextCursorInput } from 'lucide-react';
 
 const ScanPage: React.FC = () => {
   const [scannedCode, setScannedCode] = useState<string | null>(null);
-  const [scannerMode, setScannerMode] = useState<'qr' | 'ocr'>('qr');
-  const [showScanner, setShowScanner] = useState(true);
+  const [scannerMode, setScannerMode] = useState<'qr' | 'ocr' | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
+  // Add this effect to delay scanner mount on mode switch
   useEffect(() => {
     setShowScanner(false);
-    const timeout = setTimeout(() => setShowScanner(true), 300);
-    return () => clearTimeout(timeout);
+    if (scannerMode) {
+      const timeout = setTimeout(() => setShowScanner(true), 500); // 500ms delay for mobile
+      return () => clearTimeout(timeout);
+    }
   }, [scannerMode]);
 
   const handleCodeScanned = (code: string) => {
@@ -93,6 +96,22 @@ const ScanPage: React.FC = () => {
             </div>
           ) : (
             <>
+              {!scannerMode && (
+                <div className="flex justify-center mb-6 gap-4">
+                  <button
+                    className="flex items-center px-4 py-2 rounded-md border bg-primary-700 text-white"
+                    onClick={() => { setScannerMode('ocr'); setScannedCode(null); }}
+                  >
+                    <TextCursorInput className="mr-2" /> Card Scan (OCR)
+                  </button>
+                  <button
+                    className="flex items-center px-4 py-2 rounded-md border bg-primary-700 text-white"
+                    onClick={() => { setScannerMode('qr'); setScannedCode(null); }}
+                  >
+                    <QrCode className="mr-2" /> QR Scan
+                  </button>
+                </div>
+              )}
               {scannerMode === 'qr' && showScanner && (
                 <QRScanner onCodeScanned={handleCodeScanned} />
               )}
@@ -101,6 +120,21 @@ const ScanPage: React.FC = () => {
                   <div className="w-full max-w-md p-4 bg-gray-50 rounded-lg shadow">
                     <LiveOcrScanner onCodeScanned={handleCodeScanned} />
                   </div>
+                </div>
+              )}
+              {scannerMode && !showScanner && (
+                <div className="text-center text-gray-500 py-8">
+                  Releasing camera, please wait...
+                </div>
+              )}
+              {scannerMode && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md"
+                    onClick={() => setScannerMode(null)}
+                  >
+                    Back
+                  </button>
                 </div>
               )}
             </>
